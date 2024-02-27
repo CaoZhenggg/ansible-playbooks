@@ -1,0 +1,19 @@
+---
+# example:
+#   ansible-playbook \
+#       -e "system_timezone=Asia/Shanghai" \
+#       -e "system_distribution=rhel7.9" \
+#       -e "mysql_deploy_arch=Single"
+#       -K \
+#       playbooks/mysql.yml
+- name: Deploy mysql
+  hosts:
+    - mysql
+  vars:
+    ansible_remote_tmp: /tmp
+  gather_facts: true
+  become: true
+  become_user: root
+  become_method: sudo
+  roles:
+    - mysql

@@ -1,0 +1,16 @@
+[Unit]
+Description=MySQL Community Server
+Documentation=https://prometheus.io/docs/introduction/overview/
+
+[Service]
+WorkingDirectory={{ deploy_dir }}/{{ node_exporter_pkg_uncompressed_root_dir }}
+ExecStart={{ deploy_dir }}/{{ node_exporter_pkg_uncompressed_root_dir }}/node_exporter \
+            --web.listen-address=:9100
+User={{ node_exporter_process_system_user }}
+Group={{ node_exporter_process_system_user }}
+LimitNOFILE=65536
+TimeoutStopSec=15s
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

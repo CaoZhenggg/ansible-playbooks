@@ -1,0 +1,7 @@
+*.DS_Store
+*.rpm
+*.deb
+*.tar
+*.tar.gz
+*.zip
+

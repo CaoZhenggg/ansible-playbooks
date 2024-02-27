@@ -1,0 +1,136 @@
+---
+- name: "Check if the zookeeper_hosts variable is not empty"
+  ansible.builtin.fail:
+    msg: "The value of the zookeeper_hosts variable is empty"
+  when: zookeeper_hosts | length == 0
+
+- name: "Check whether the number of {{ zookeeper_hosts }} group members is greater than or equal to 3"
+  ansible.builtin.fail:
+    msg: "A minimum of three servers are required for clustered setup"
+  when: groups[zookeeper_hosts] | length < 3
+
+- name: Create a directory for ansible to transfer files
+  ansible.builtin.file:
+    path: "{{ ansible_transfer_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "Copy ZooKeeper to remote {{ ansible_transfer_dir }} directory"
+  ansible.builtin.copy:
+    src: "{{ local_zookeeper_pkg_path }}"
+    dest: "{{ ansible_transfer_dir }}/"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Add '# zookeeper' to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    insertafter: EOF
+    line: '# zookeeper'
+    backup: true
+
+- name: Add all zookeeper host to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    insertafter: EOF
+    line: "{{ hostvars[item]['ansible_host'] }}    {{ item }}"
+  with_items:
+    - "{{ groups[zookeeper_hosts] }}"
+
+- name: Change the Transient hostname to be the same as the Static hostname
+  ansible.builtin.shell: |
+    hostnamectl --transient set-hostname $(hostnamectl --static)
+  changed_when: false
+
+- name: "Create system user {{ zookeeper_system_user }}"
+  ansible.builtin.user:
+    name: "{{ zookeeper_system_user }}"
+    password: "{{ zookeeper_system_password | password_hash('sha512', 'salt') }}"
+    shell: /bin/bash
+
+- name: Uncompress ZooKeeper package
+  ansible.builtin.unarchive:
+    remote_src: true
+    src: "{{ ansible_transfer_dir }}/{{ zookeeper_pkg_name }}"
+    dest: "{{ zookeeper_deploy_path }}"
+    owner: "{{ zookeeper_system_user }}"
+    group: "{{ zookeeper_system_user }}"
+    mode: '0755'
+
+- name: Set the owner and group of the ZooKeeper directory
+  ansible.builtin.file:
+    path: "{{ zookeeper_deploy_path }}/{{ zookeeper_pkg_uncompressed_root_dir }}"
+    owner: "{{ zookeeper_system_user }}"
+    group: "{{ zookeeper_system_user }}"
+    recurse: true
+
+- name: "Create ZooKeeper data directory {{ zookeeper_data_dir }}"
+  ansible.builtin.file:
+    path: "{{ zookeeper_data_dir }}"
+    state: directory
+    owner: "{{ zookeeper_system_user }}"
+    group: "{{ zookeeper_system_user }}"
+    mode: '0755'
+
+- name: Create ZooKeeper config file
+  ansible.builtin.template:
+    src: templates/zoo.cfg-cluster.j2
+    dest: "{{ zookeeper_deploy_path }}/{{ zookeeper_pkg_uncompressed_root_dir }}/conf/zoo.cfg"
+    owner: "{{ zookeeper_system_user }}"
+    group: "{{ zookeeper_system_user }}"
+    mode: '0644'
+
+- name: Create ZooKeeper myid file
+  ansible.builtin.template:
+    src: templates/myid.j2
+    dest: "{{ zookeeper_data_dir }}/myid"
+    owner: "{{ zookeeper_system_user }}"
+    group: "{{ zookeeper_system_user }}"
+    mode: '0644'
+
+- name: Create ZooKeeper systemd service file
+  ansible.builtin.template:
+    src: templates/zookeeper.service.j2
+    dest: /usr/lib/systemd/system/zookeeper.service
+    owner: root
+    group: root
+    mode: '0644'
+
+# - name: Add filewall rules
+#   firewalld:
+#     zone: public
+#     port: "{{ item }}/tcp"
+#     permanent: true
+#     state: enabled
+#   with_items:
+#     - 2181
+#     - 2888
+#     - 3888
+#     - 7000
+#   when: firewalld_status.stdout == "running"
+
+# - name: Reload firewall
+#   ansible.builtin.command: firewall-cmd --reload
+#   when: firewalld_status.stdout == "running"
+
+- name: Start ZooKeeper
+  systemd:
+    name: zookeeper
+    state: started
+    daemon_reload: true
+    enabled: true
+
+- name: Wait for ports to become open on the host, don't start checking for 10 seconds
+  ansible.builtin.wait_for:
+    port: "{{ item }}"
+    host: "{{ hostvars[inventory_hostname]['ansible_host'] }}"
+    state: started
+    delay: 10
+    timeout: 30
+  with_items:
+    - 2181
+    - 3888
+    - 7000

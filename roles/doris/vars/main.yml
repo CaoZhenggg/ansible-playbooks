@@ -1,0 +1,75 @@
+---
+#
+# System
+#
+
+# Optional value: rhel7.8, rhel7.9
+system_distribution: rhel7.9
+
+
+#
+# Doris
+#
+doris_pkg_name: apache-doris-2.0.3-rc04-bin-x64.tar.gz
+doris_pkg_uncompressed_root_dir: apache-doris-2.0.3-rc04-bin-x64
+local_doris_pkg_path: "files/doris/{{ doris_pkg_name }}"
+remote_doris_pkg_uncompressed_dir: "{{ ansible_transfer_dir }}/{{ doris_pkg_uncompressed_root_dir }}"
+
+doris_system_user: doris
+doris_system_password: Qwer12343!@
+
+doris_deploy_dir: /opt/doris
+
+doris_root_password: Doris@123
+
+# FE
+doris_fe_metadata_dir: /data/doris/fe
+doris_fe_config: "{{ doris_deploy_dir }}/fe/conf/fe.conf"
+doris_fe_binary_dir: "{{ doris_deploy_dir }}/fe/bin"
+
+doris_fe_max_dynamic_partition_num: "3000"
+doris_fe_fe_thrift_max_pkg_bytes: "-1"
+
+# BE
+doris_be_data_dir: /data/doris/be
+doris_be_config: "{{ doris_deploy_dir }}/be/conf/be.conf"
+
+doris_be_max_dynamic_partition_num: "3000"
+doris_be_streaming_load_max_mb: "409600"
+doris_be_download_worker_count: "10"
+
+#
+# Mysql client
+#
+mysql_client_pkg_name: mysql-client-8.2.0-1.tar.gz
+mysql_client_pkg_uncompressed_root_dir: mysql-client-8.2.0-1
+local_mysql_client_pkg_path: "files/{{ system_distribution }}/{{ mysql_client_pkg_name }}"
+remote_mysql_client_pkg_uncompressed_dir: "{{ ansible_transfer_dir }}/{{ mysql_client_pkg_uncompressed_root_dir }}"
+
+
+#
+# NTP
+#
+ntp_server_deploy_switch: "on"
+
+__ntp_servers:
+  - ntp.aliyun.com
+  - ntp.tencent.com
+
+
+#
+# Network
+#
+cidr_prefix_length: "24"
+
+
+#
+# JDK
+#
+# The 'jdk' role will expose 'java_home' variable.
+
+
+#
+# Ansible
+#
+ansible_transfer_dir: /opt/.ansible-transfer-files

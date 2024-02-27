@@ -1,0 +1,56 @@
+---
+- name: Configure system settings
+  ansible.builtin.include_role:
+    name: configure-system
+
+# The ntp_servers variable must be provided and will be used by the 'ntp_servers' role.
+- name: Configuring NTP
+  ansible.builtin.include_role:
+    name: ntp_chrony
+  when: ntp_server_deploy_switch == "on"
+  vars:
+    ntp_servers: "{{ __ntp_servers }}"
+
+# The zookeeper_hosts variable must be provided and will be used by the 'zookeeper' role.
+- name: Deploy zookeeper
+  ansible.builtin.include_role:
+    name: zookeeper
+  when: inventory_hostname in groups[__zookeeper_hosts]
+  vars:
+    zookeeper_deploy_arch: "{{ __zookeeper_deploy_arch }}"
+    zookeeper_hosts: "{{ __zookeeper_hosts }}"
+
+- name: Deeploy mysql
+  ansible.builtin.include_role:
+    name: mysql
+  when:
+    - mysql_deploy_switch == "on"
+    - inventory_hostname in groups['ds_mysql']
+  vars:
+    mysql_deploy_arch: "{{ __mysql_deploy_arch }}"
+    system_distribution: "{{ __system_distribution }}"
+    mysql_root_password: "{{ mysql_admin_password }}"
+
+- name: Install JDK
+  ansible.builtin.include_role:
+    name: jdk
+    public: true
+  when:
+    inventory_hostname in groups['ds_master'] or
+    inventory_hostname in groups['ds_worker'] or
+    inventory_hostname in groups['ds_api_server'] or
+    inventory_hostname in groups['ds_alert_server']
+
+- name: Deploy dolphinscheduler
+  ansible.builtin.include_tasks:
+    file: dolphinscheduler.yml
+  when:
+    inventory_hostname in groups['ds_master'] or
+    inventory_hostname in groups['ds_worker'] or
+    inventory_hostname in groups['ds_api_server'] or
+    inventory_hostname in groups['ds_alert_server']
+
+- name: Deploy datax
+  ansible.builtin.include_tasks:
+    file: datax.yml
+  when: inventory_hostname in groups['ds_worker']

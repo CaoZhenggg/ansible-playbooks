@@ -1,0 +1,45 @@
+- name: Create a directory for ansible to transfer files
+  ansible.builtin.file:
+    path: "{{ ansible_transfer_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "Copy package to remote directory {{ ansible_transfer_dir }}"
+  ansible.builtin.copy:
+    src: "{{ local_node_exporter_pkg_path }}"
+    dest: "{{ ansible_transfer_dir }}/"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "Create system user {{ node_exporter_process_system_user }}"
+  ansible.builtin.user:
+    name: "{{ node_exporter_process_system_user }}"
+    shell: /bin/bash
+  when: node_exporter_process_system_user != "root"
+
+- name: Uncompress node_exporter package
+  ansible.builtin.unarchive:
+    remote_src: true
+    src: "{{ ansible_transfer_dir }}/{{ node_exporter_pkg_name }}"
+    dest: "{{ deploy_dir }}"
+    owner: "{{ node_exporter_process_system_user }}"
+    group: "{{ node_exporter_process_system_user }}"
+    mode: '0755'
+
+- name: Template node_exporter.service.j2 out to /usr/lib/systemd/system/node_exporter.service
+  ansible.builtin.template:
+    src: templates/node_exporter.service.j2
+    dest: /usr/lib/systemd/system/node_exporter.service
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Start node_exporter
+  systemd:
+    name: node_exporter
+    state: started
+    enabled: true
+    daemon_reload: true

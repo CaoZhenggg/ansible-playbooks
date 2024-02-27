@@ -1,0 +1,24 @@
+---
+#
+# ZooKeeper
+#
+zookeeper_hosts: "{{ deploy_hosts }}"
+
+# Option values: cluster, standalone. Default is cluster.
+zookeeper_deploy_arch: cluster
+
+zookeeper_pkg_name: apache-zookeeper-3.8.3-bin.tar.gz
+zookeeper_pkg_uncompressed_root_dir: apache-zookeeper-3.8.3-bin
+local_zookeeper_pkg_path: "files/{{ zookeeper_pkg_name }}"
+zookeeper_deploy_path: /opt
+
+zookeeper_data_dir: /data/zookeeper
+
+zookeeper_system_user: zookeeper
+zookeeper_system_password: Qwer12343!@
+
+
+#
+# Ansible
+#
+ansible_transfer_dir: /opt/.ansible-transfer-files

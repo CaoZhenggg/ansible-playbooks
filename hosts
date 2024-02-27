@@ -1,0 +1,73 @@
+#
+# dolphinscheduler
+#
+[ds_zookeeper]
+ds-zk-1    ansible_host=192.168.3.51    ansible_port=22    ansible_user=op    zoo_myid=1
+ds-zk-2    ansible_host=192.168.3.52    ansible_port=22    ansible_user=op    zoo_myid=2
+ds-zk-3    ansible_host=192.168.3.53    ansible_port=22    ansible_user=op    zoo_myid=3
+
+[ds_mysql]
+ds-mysql   ansible_host=192.168.3.55    ansible_port=22    ansible_user=op
+
+[ds_master]
+ds-master-1    ansible_host=192.168.3.51    ansible_port=22    ansible_user=op
+ds-master-2    ansible_host=192.168.3.52    ansible_port=22    ansible_user=op
+
+[ds_worker]
+ds-worker-1    ansible_host=192.168.3.51    ansible_port=22    ansible_user=op
+ds-worker-2    ansible_host=192.168.3.52    ansible_port=22    ansible_user=op
+ds-worker-3    ansible_host=192.168.3.53    ansible_port=22    ansible_user=op
+ds-worker-4    ansible_host=192.168.3.54    ansible_port=22    ansible_user=op
+
+[ds_alert_server]
+ds-alert-server    ansible_host=192.168.3.53    ansible_port=22    ansible_user=op
+
+[ds_api_server]
+ds-api-server    ansible_host=192.168.3.53    ansible_port=22    ansible_user=op
+
+[dolphinscheduler:children]
+ds_master
+ds_worker
+ds_api_server
+ds_alert_server
+ds_zookeeper
+ds_mysql
+
+
+#
+# doris
+#
+[doris_fe]
+fe-1    ansible_host=192.168.3.51    ansible_port=22    ansible_user=op
+fe-2    ansible_host=192.168.3.52    ansible_port=22    ansible_user=op
+fe-3    ansible_host=192.168.3.53    ansible_port=22    ansible_user=op
+
+[doris_be]
+be-1    ansible_host=192.168.3.54    ansible_port=22    ansible_user=op
+be-2    ansible_host=192.168.3.55    ansible_port=22    ansible_user=op
+be-3    ansible_host=192.168.3.56    ansible_port=22    ansible_user=op
+
+[doris:children]
+doris_fe
+doris_be
+
+
+#
+# minio
+#
+[minio]
+minio-1    ansible_host=192.168.3.61    ansible_port=22    ansible_user=op
+minio-2    ansible_host=192.168.3.62    ansible_port=22    ansible_user=op
+minio-3    ansible_host=192.168.3.63    ansible_port=22    ansible_user=op
+minio-4    ansible_host=192.168.3.64    ansible_port=22    ansible_user=op
+
+[minio_nginx]
+minio-nginx-1    ansible_host=192.168.3.65    ansible_port=22    ansible_user=op
+minio-nginx-2    ansible_host=192.168.3.66    ansible_port=22    ansible_user=op
+
+
+#
+# mysql
+#
+[mysql]
+mysql-1   ansible_host=192.168.3.53    ansible_port=22    ansible_user=op

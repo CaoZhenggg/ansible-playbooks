@@ -1,0 +1,12 @@
+---
+# The deploy_hosts variable must be added to the command line.
+# example:
+# $ ansible-playbook -e "deploy_hosts=backend" -K playbooks/jdk.yml
+- name: "Install JDK"
+  hosts: "{{ deploy_hosts }}"
+  gather_facts: true
+  become: true
+  become_user: root
+  become_method: sudo
+  roles:
+    - jdk

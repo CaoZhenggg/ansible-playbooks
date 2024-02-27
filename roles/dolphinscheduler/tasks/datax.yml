@@ -1,0 +1,52 @@
+---
+- name: "Copy deploy files to remote {{ ansible_transfer_dir }} directory"
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ ansible_transfer_dir }}"
+    owner: root
+    group: root
+    mode: '0755'
+  with_items:
+    - "{{ local_datax_pkg_path }}"
+    - "{{ local_unzip_pkg_path }}"
+
+- name: Uncompress unzip package
+  ansible.builtin.unarchive:
+    remote_src: true
+    src: "{{ ansible_transfer_dir }}/{{ unzip_pkg_name }}"
+    dest: "{{ ansible_transfer_dir }}"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "Find all rpm package in {{ remote_unzip_pkg_uncompressed_dir }} directory"
+  ansible.builtin.find:
+    paths: "{{ remote_unzip_pkg_uncompressed_dir }}"
+    patterns: "*.rpm"
+  register: rpm_files
+
+- name: Set host variable rpm_list
+  ansible.builtin.set_fact:
+    rpm_list: "{{ rpm_files.files | map(attribute='path') | list }}"
+
+- name: Install unzip
+  ansible.builtin.yum:
+    name: "{{ rpm_list }}"
+    state: present
+
+- name: Create directory /opt/soft
+  ansible.builtin.file:
+    path: /opt/soft
+    state: directory
+    owner: "{{ dolphinscheduler_system_user }}"
+    group: "{{ dolphinscheduler_system_user }}"
+    mode: '0755'
+
+- name: Uncompress {{ datax_pkg_name }} to /opt/soft/
+  ansible.builtin.unarchive:
+    remote_src: true
+    src: "{{ ansible_transfer_dir }}/{{ datax_pkg_name }}"
+    dest: /opt/soft/
+    owner: "{{ dolphinscheduler_system_user }}"
+    group: "{{ dolphinscheduler_system_user }}"
+    mode: '0755'

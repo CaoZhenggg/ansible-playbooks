@@ -1,0 +1,17 @@
+---
+#
+# node_exporter
+#
+deploy_dir: /opt
+node_exporter_pkg_name: node_exporter-1.6.1.linux-amd64.tar.gz
+node_exporter_pkg_uncompressed_root_dir: node_exporter-1.6.1.linux-amd64
+local_node_exporter_pkg_path: "files/{{ node_exporter_pkg_name }}"
+
+node_exporter_process_system_user: root
+node_exporter_process_system_group: root
+
+
+#
+# Ansible
+#
+ansible_transfer_dir: /opt/.ansible-transfer-files

@@ -1,0 +1,32 @@
+---
+- name: Disable SELinux
+  selinux:
+    state: disabled
+
+- name: Add maximum number of open files configurations to /etc/security/limits.conf
+  ansible.builtin.blockinfile:
+    path: /etc/security/limits.conf
+    block: |
+      root soft nofile 65535
+      root hard nofile 65535
+      * soft nofile 65535
+      * hard nofile 65535
+    backup: true
+
+- name: Set timezone to Asia/Shanghai
+  ansible.builtin.command: timedatectl set-timezone Asia/Shanghai
+  register: timedatectl_output
+  changed_when: timedatectl_output.rc != 0
+
+- name: Remove swap from fstab
+  ansible.builtin.lineinfile:
+    path: '/etc/fstab'
+    regexp: '\sswap\s'
+    state: 'absent'
+    backup: true
+
+- name: Disable swap
+  ansible.builtin.command: swapoff -a
+  ignore_errors: true
+  changed_when: true
+  when: ansible_swaptotal_mb > 0

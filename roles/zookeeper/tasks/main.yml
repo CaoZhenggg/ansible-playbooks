@@ -1,0 +1,22 @@
+---
+- name: Configure system settings
+  ansible.builtin.include_role:
+    name: configure-system
+
+# set the public parameter to true to expose variable java_home
+- name: Install JDK
+  ansible.builtin.include_role:
+    name: jdk
+    public: true
+
+- name: Deeploy zookeeper standalone
+  ansible.builtin.include_tasks:
+    file: standalone.yml
+  when:
+    - zookeeper_deploy_arch == "standalone"
+
+- name: Deeploy zookeeper cluster
+  ansible.builtin.include_tasks:
+    file: cluster.yml
+  when:
+    - zookeeper_deploy_arch == "cluster"

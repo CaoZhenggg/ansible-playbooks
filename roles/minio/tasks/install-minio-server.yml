@@ -1,0 +1,122 @@
+---
+- name: Create a directory for ansible to transfer files
+  ansible.builtin.file:
+    path: "{{ ansible_transfer_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Backup /etc/hosts, then add a empty line
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    insertafter: EOF
+    backup: true
+    line: ' '
+
+- name: Add annotation to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    insertafter: EOF
+    line: "# minio"
+
+- name: Add a sequential series of MinIO hosts to /etc/hosts for creating a server pool
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    insertafter: EOF
+    line: "{{ hostvars[item]['ansible_host'] }}    {{ item }}"
+  with_items:
+    - "{{ groups['minio'] }}"
+
+- name: Copy minio server package to remote
+  ansible.builtin.copy:
+    src: "{{ local_minio_server_pkg_path }}"
+    dest: "{{ ansible_transfer_dir }}"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Uncompress minio server package
+  ansible.builtin.unarchive:
+    remote_src: true
+    src: "{{ ansible_transfer_dir }}/{{ minio_server_pkg_name }}"
+    dest: "{{ ansible_transfer_dir }}/"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "Find all rpm files in {{ remote_minio_server_uncompressed_dir }} folder"
+  ansible.builtin.find:
+    paths: "{{ remote_minio_server_uncompressed_dir }}"
+    patterns: "*.rpm"
+  register: rpm_files
+
+- name: Set host variable rpm_list
+  ansible.builtin.set_fact:
+    rpm_list: "{{ rpm_files.files | map(attribute='path') | list }}"
+
+- name: Install minio server
+  ansible.builtin.yum:
+    name: "{{ rpm_list }}"
+    state: present
+
+- name: Create minio server system user "minio-user"
+  ansible.builtin.user:
+    name: minio-user
+    shell: /sbin/nologin
+
+- name: Set minio data directory permission
+  ansible.builtin.file:
+    path: "{{ minio_server_datadir }}"
+    owner: minio-user
+    group: minio-user
+
+- name: Copy minio systemd environment file
+  ansible.builtin.template:
+    src: templates/minio-systemd-environment.j2
+    dest: /etc/default/minio
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Check if firewalld was running
+  ansible.builtin.command: firewall-cmd --state
+  register: firewalld_status
+  ignore_errors: true
+
+- name: "Permit traffic in public zone on port {{ minio_api_port }}/tcp and {{ minio_console_port }}/tcp"
+  #ansible.posix.firewalld:
+  firewalld:
+    zone: public
+    port: 9000-9001/tcp
+    permanent: true
+    state: enabled
+  when: firewalld_status.stdout == "running"
+
+- name: Reload firewall
+  ansible.builtin.command: firewall-cmd --reload
+  when: firewalld_status.stdout == "running"
+
+- name: Start minio and enable start on boot
+  ansible.builtin.systemd:
+    name: minio
+    state: started
+    enabled: true
+
+- name: Wait for ports to become open on the host, don't start checking for 5 seconds
+  ansible.builtin.wait_for:
+    port: "{{ item }}"
+    host: "{{ hostvars[inventory_hostname]['ansible_host'] }}"
+    state: started
+    delay: 5
+    timeout: 30
+  with_items:
+    - 9000
+    - 9001
+
+- name: "Clean remote temporary directory"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "{{ remote_minio_server_uncompressed_dir }}"

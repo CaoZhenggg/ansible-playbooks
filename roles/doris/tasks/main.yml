@@ -1,0 +1,32 @@
+---
+- name: Configure system settings
+  ansible.builtin.include_role:
+    name: configure-system
+
+# The ntp_servers variable must be provided and will be used by the 'ntp_servers' role.
+- name: Configuring NTP
+  ansible.builtin.include_role:
+    name: ntp_chrony
+  vars:
+    ntp_servers: "{{ __ntp_servers }}"
+  when: ntp_server_deploy_switch == "on"
+
+- name: Install JDK
+  ansible.builtin.include_role:
+    name: jdk
+    public: true
+
+- name: Deploy Doris FE
+  ansible.builtin.include_tasks:
+    file: deploy-fe.yml
+  when: inventory_hostname in groups["doris_fe"]
+
+- name: Deploy Doris BE
+  ansible.builtin.include_tasks:
+    file: deploy-be.yml
+  when: inventory_hostname in groups["doris_be"]
+
+- name: Change Doris root password
+  ansible.builtin.include_tasks:
+    file: change-doris-root-password.yml
+  when: inventory_hostname == "fe-1"

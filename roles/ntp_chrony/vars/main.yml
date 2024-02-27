@@ -1,0 +1,26 @@
+---
+#
+# System
+#
+
+# Optional value: rhel7.8, rhel7.9
+system_distribution: rhel7.8
+
+
+#
+# Chrony
+#
+chrony_pkg_name: chrony.tar.gz
+chrony_pkg_uncompressed_root_dir: chrony
+local_chrony_pkg_path: "files/{{ system_distribution }}/{{ chrony_pkg_name }}"
+remote_chrony_pkg_uncompressed_dir: "{{ ansible_transfer_dir }}/{{ chrony_pkg_uncompressed_root_dir }}"
+
+ntp_servers:
+  - ntp.aliyun.com
+  - ntp.tencent.com
+
+
+#
+# Ansible
+#
+ansible_transfer_dir: /opt/.ansible-transfer-files

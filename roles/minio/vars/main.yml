@@ -1,0 +1,55 @@
+---
+#
+# Minio
+#
+minio_server_pkg_name: minio-server.tar.gz
+minio_server_pkg_uncompressed_root_dir: minio-server
+local_minio_server_pkg_path: "files/rpm/centos7/{{ minio_server_pkg_name }}"
+remote_minio_server_uncompressed_dir: "{{ ansible_transfer_dir }}/{{ minio_server_pkg_uncompressed_root_dir }}"
+
+minio_client_pkg_name: minio-client.tar.gz
+minio_client_pkg_uncompressed_root_dir: minio-client
+local_minio_client_pkg_path: "files/rpm/centos7/{{ minio_client_pkg_name }}"
+remote_minio_client_uncompressed_dir: "{{ ansible_transfer_dir }}/{{ minio_client_pkg_uncompressed_root_dir }}"
+
+minio_api_port: "9000"
+minio_console_port: "9001"
+minio_server_datadir: /data
+minio_root_user: minioadmin
+minio_root_password: minioadmin
+minio_node_number: "{{ groups['minio'] | length }}"
+minio_volumes: "http://minio-{1...{{ minio_node_number }}}:{{ minio_api_port }}{{ minio_server_datadir }}/minio"
+minio_opts: "--console-address :{{ minio_console_port }}"
+minio_server_url: "http://{{ minio_nginx_server_name }}"
+minio_browser_redirect_url: "http://{{ minio_nginx_server_name }}/minio/ui"
+
+minio_prometheus_url: "http://192.168.3.4:9090"
+minio_prometheus_job_id: "minio-job"
+
+
+#
+# Keepalive
+#
+keepalive_pkg_name: keepalived.tar.gz
+keepalive_pkg_uncompressed_root_dir: keepalived
+local_keepalive_pkg_path: "files/rpm/centos7/{{ keepalive_pkg_name }}"
+remote_keepalive_uncompressed_dir: "{{ ansible_transfer_dir }}/{{ keepalive_pkg_uncompressed_root_dir }}"
+
+keepalive_vip: "192.168.3.60"
+
+
+#
+# Nginx
+#
+nginx_pkg_name: nginx.tar.gz
+nginx_pkg_uncompressed_root_dir: nginx
+local_nginx_pkg_path: "files/rpm/centos7/{{ nginx_pkg_name }}"
+remote_nginx_uncompressed_dir: "{{ ansible_transfer_dir }}/{{ nginx_pkg_uncompressed_root_dir }}"
+
+minio_nginx_server_name: "{{ keepalive_vip }}"
+
+
+#
+# Ansible
+#
+ansible_transfer_dir: /opt/.ansible-transfer-files

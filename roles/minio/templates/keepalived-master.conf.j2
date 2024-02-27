@@ -1,0 +1,30 @@
+global_defs {
+    router_id node-1
+    script_user root
+}
+
+vrrp_script check_nginx {
+    script "/etc/keepalived/check-nginx.sh"
+    interval 1
+    weight -2
+    fall 3
+    rise 1
+}
+
+vrrp_instance VI_1 {
+    state MASTER
+    interface {{ ansible_default_ipv4.interface }}
+    virtual_router_id 51
+    priority 100
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass Yjminio@123
+    }
+    virtual_ipaddress {
+        {{ keepalive_vip }}
+    }
+    track_script {
+        check_nginx
+    }
+}

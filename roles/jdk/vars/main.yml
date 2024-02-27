@@ -1,0 +1,16 @@
+---
+#
+# JDK
+#
+jdk_pkg_name: jdk-8u391-linux-x64.tar.gz
+jdk_pkg_uncompressed_root_dir: jdk1.8.0_391
+local_jdk_pkg_path: "files/{{ jdk_pkg_name }}"
+jdk_deploy_path: /opt
+
+java_home: "{{ jdk_deploy_path }}/{{ jdk_pkg_uncompressed_root_dir }}"
+
+
+#
+# Ansible
+#
+ansible_transfer_dir: /opt/.ansible-transfer-files

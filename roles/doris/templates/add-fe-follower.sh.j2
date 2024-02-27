@@ -1,0 +1,5 @@
+#!/bin/sh
+
+{% for item in rest_follower_list %}
+/usr/bin/mysql -h 127.0.0.1 -P 9030 -e 'ALTER SYSTEM ADD FOLLOWER "{{ hostvars[item]['ansible_host'] }}:9010";'
+{% endfor %}

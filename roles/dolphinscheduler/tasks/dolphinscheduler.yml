@@ -1,0 +1,442 @@
+---
+- name: Create a directory for ansible to transfer files
+  ansible.builtin.file:
+    path: "{{ ansible_transfer_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "Copy deploy files to remote {{ ansible_transfer_dir }} directory"
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ ansible_transfer_dir }}"
+    owner: root
+    group: root
+    mode: '0755'
+  with_items:
+    - "{{ local_dolphinscheduler_pkg_path }}"
+    - "{{ local_mysql_connector_jar_path }}"
+    - "{{ local_ojdbc_jar_path }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Copy deploy files to remote {{ ansible_transfer_dir }} directory"
+  ansible.builtin.copy:
+    src: "{{ item }}"
+    dest: "{{ ansible_transfer_dir }}"
+    owner: root
+    group: root
+    mode: '0755'
+  with_items:
+    - "{{ local_psmisc_pkg_path }}"
+    - "{{ local_mysql_client_pkg_path }}"
+
+- name: Uncompress psmisc package
+  ansible.builtin.unarchive:
+    remote_src: true
+    src: "{{ ansible_transfer_dir }}/{{ psmisc_pkg_name }}"
+    dest: "{{ ansible_transfer_dir }}"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "Find all rpm package in {{ remote_psmisc_pkg_uncompressed_dir }} directory"
+  ansible.builtin.find:
+    paths: "{{ remote_psmisc_pkg_uncompressed_dir }}"
+    patterns: "*.rpm"
+  register: rpm_files
+
+- name: Set host variable rpm_list
+  ansible.builtin.set_fact:
+    rpm_list: "{{ rpm_files.files | map(attribute='path') | list }}"
+
+- name: Install psmisc
+  ansible.builtin.yum:
+    name: "{{ rpm_list }}"
+    state: present
+
+- name: Uncompress mysql client package
+  ansible.builtin.unarchive:
+    remote_src: true
+    src: "{{ ansible_transfer_dir }}/{{ mysql_client_pkg_name }}"
+    dest: "{{ ansible_transfer_dir }}"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "Find all rpm package in {{ remote_mysql_client_pkg_uncompressed_dir }} directory"
+  ansible.builtin.find:
+    paths: "{{ remote_mysql_client_pkg_uncompressed_dir }}"
+    patterns: "*.rpm"
+  register: rpm_files
+
+- name: Set host variable rpm_list
+  ansible.builtin.set_fact:
+    rpm_list: "{{ rpm_files.files | map(attribute='path') | list }}"
+
+- name: Install mysql client
+  ansible.builtin.yum:
+    name: "{{ rpm_list }}"
+    state: present
+
+- name: "Create system user {{ dolphinscheduler_system_user }}"
+  ansible.builtin.user:
+    name: "{{ dolphinscheduler_system_user }}"
+    password: "{{ dolphinscheduler_system_password | password_hash('sha512', 'salt') }}"
+    shell: /bin/bash
+
+- name: Configuring /etc/sudoers
+  ansible.builtin.lineinfile:
+    path: /etc/sudoers
+    insertafter: EOF
+    line: "{{ dolphinscheduler_system_user }}  ALL=(ALL)  NOPASSWD: NOPASSWD: ALL"
+    backup: true
+
+- name: Configuring /etc/sudoers
+  ansible.builtin.replace:
+    path: /etc/sudoers
+    regexp: 'Defaults\s+requirett'
+    replace: '#Defaults    requirett'
+
+- name: Add '# dolphinscheduler' to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    insertafter: EOF
+    line: '# dolphinscheduler'
+    backup: true
+
+- name: Add all dolphinscheduler host to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    insertafter: EOF
+    line: "{{ hostvars[item]['ansible_host'] }}    {{ item }}"
+  with_items:
+    - "{{ groups['ds_master'] + groups['ds_worker'] + groups['ds_api_server'] + groups['ds_alert_server'] }}"
+
+- name: Add '# zookeeper' to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    insertafter: EOF
+    line: '# zookeeper'
+
+- name: Add all zookeeper host to /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    insertafter: EOF
+    line: "{{ hostvars[item]['ansible_host'] }}    {{ item }}"
+  with_items:
+    - "{{ groups[__zookeeper_hosts] }}"
+
+- name: Change the Transient hostname to be the same as the Static hostname
+  ansible.builtin.shell: |
+    hostnamectl --transient set-hostname $(hostnamectl --static)
+  changed_when: true
+
+- name: Generate an OpenSSH keypair
+  ansible.builtin.shell: |
+    if [ ! -f /home/{{ dolphinscheduler_system_user }}/.ssh/id_rsa ]; then
+        ssh-keygen -t rsa -P "" -f /home/{{ dolphinscheduler_system_user }}/.ssh/id_rsa
+    fi
+  become: true
+  become_user: "{{ dolphinscheduler_system_user }}"
+  when: inventory_hostname == "ds-master-1"
+  changed_when: true
+
+- name: Fetch id_rsa.pub from master-1
+  ansible.builtin.fetch:
+    src: "/home/{{ dolphinscheduler_system_user }}/.ssh/id_rsa.pub"
+    dest: /tmp/
+    flat: true
+  when: inventory_hostname == "ds-master-1"
+
+- name: Copy master-1's id_rsa.pub to remote
+  ansible.builtin.copy:
+    src: /tmp/id_rsa.pub
+    dest: /tmp/id_rsa.pub
+    mode: '0644'
+
+- name: "Add master-1's id_rsa.pub content to /home/{{ dolphinscheduler_system_user }}/.ssh/authorized_keys"
+  ansible.builtin.shell: |
+    [ ! -d /home/{{ dolphinscheduler_system_user }}/.ssh ] && mkdir /home/{{ dolphinscheduler_system_user }}/.ssh
+    cat /tmp/id_rsa.pub > /home/{{ dolphinscheduler_system_user }}/.ssh/authorized_keys
+    chown {{ dolphinscheduler_system_user }}:{{ dolphinscheduler_system_user }} /home/{{ dolphinscheduler_system_user }}/.ssh/ -R
+    chmod 600 /home/{{ dolphinscheduler_system_user }}/.ssh/authorized_keys
+  changed_when: true
+
+- name: Add host keys to known_hosts on master-1
+  ansible.builtin.shell:
+    ssh-keyscan -H {{ item }} 2>&1 /dev/null | grep ecdsa-sha2-nistp256 >> /home/{{ dolphinscheduler_system_user }}/.ssh/known_hosts;
+    ssh-keyscan -H {{ hostvars[item]['ansible_host'] }} 2>&1 /dev/null | grep ecdsa-sha2-nistp256 >> /home/{{ dolphinscheduler_system_user }}/.ssh/known_hosts;
+    chown {{ dolphinscheduler_system_user }}:{{ dolphinscheduler_system_user }} /home/{{ dolphinscheduler_system_user }}/.ssh/known_hosts;
+    chmod 644 /home/{{ dolphinscheduler_system_user }}/.ssh/known_hosts
+  with_items:
+    - "{{ groups['ds_master'] + groups['ds_worker'] + groups['ds_api_server'] + groups['ds_alert_server'] }}"
+  when: inventory_hostname == "ds-master-1"
+  changed_when: true
+
+- name: Uncompress Dolphinscheduler package
+  ansible.builtin.unarchive:
+    remote_src: true
+    src: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_name }}"
+    dest: "{{ ansible_transfer_dir }}/"
+    owner: "{{ dolphinscheduler_system_user }}"
+    group: "{{ dolphinscheduler_system_user }}"
+    mode: '0755'
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Copy {{ mysql_connector_jar_name }}, {{ ojdbc_jar_name }} to {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/master-server/libs/"
+  ansible.builtin.copy:
+    remote_src: true
+    src: "{{ item }}"
+    dest: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/master-server/libs/"
+    owner: "{{ dolphinscheduler_system_user }}"
+    group: "{{ dolphinscheduler_system_user }}"
+    mode: '0744'
+  with_items:
+    - "{{ ansible_transfer_dir }}/{{ ojdbc_jar_name }}"
+    - "{{ ansible_transfer_dir }}/{{ mysql_connector_jar_name }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Copy {{ mysql_connector_jar_name }}, {{ ojdbc_jar_name }} to {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/worker-server/libs/"
+  ansible.builtin.copy:
+    remote_src: true
+    src: "{{ item }}"
+    dest: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/worker-server/libs/"
+    owner: "{{ dolphinscheduler_system_user }}"
+    group: "{{ dolphinscheduler_system_user }}"
+    mode: '0744'
+  with_items:
+    - "{{ ansible_transfer_dir }}/{{ ojdbc_jar_name }}"
+    - "{{ ansible_transfer_dir }}/{{ mysql_connector_jar_name }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Copy {{ mysql_connector_jar_name }}, {{ ojdbc_jar_name }} to {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/api-server/libs/"
+  ansible.builtin.copy:
+    remote_src: true
+    src: "{{ item }}"
+    dest: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/api-server/libs/"
+    owner: "{{ dolphinscheduler_system_user }}"
+    group: "{{ dolphinscheduler_system_user }}"
+    mode: '0744'
+  with_items:
+    - "{{ ansible_transfer_dir }}/{{ ojdbc_jar_name }}"
+    - "{{ ansible_transfer_dir }}/{{ mysql_connector_jar_name }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Copy {{ mysql_connector_jar_name }}, {{ ojdbc_jar_name }} to {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/alert-server/libs/"
+  ansible.builtin.copy:
+    remote_src: true
+    src: "{{ item }}"
+    dest: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/alert-server/libs/"
+    owner: "{{ dolphinscheduler_system_user }}"
+    group: "{{ dolphinscheduler_system_user }}"
+    mode: '0744'
+  with_items:
+    - "{{ ansible_transfer_dir }}/{{ ojdbc_jar_name }}"
+    - "{{ ansible_transfer_dir }}/{{ mysql_connector_jar_name }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Copy {{ mysql_connector_jar_name }}, {{ ojdbc_jar_name }} to {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/tools/libs/"
+  ansible.builtin.copy:
+    remote_src: true
+    src: "{{ item }}"
+    dest: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/tools/libs/"
+    owner: "{{ dolphinscheduler_system_user }}"
+    group: "{{ dolphinscheduler_system_user }}"
+    mode: '0744'
+  with_items:
+    - "{{ ansible_transfer_dir }}/{{ ojdbc_jar_name }}"
+    - "{{ ansible_transfer_dir }}/{{ mysql_connector_jar_name }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Template dolphinscheduler-mysql-init.sh.j2 out to {{ ansible_transfer_dir }}/dolphinscheduler-mysql-init.sh"
+  ansible.builtin.template:
+    src: templates/dolphinscheduler-mysql-init.sh.j2
+    dest: "{{ ansible_transfer_dir }}/dolphinscheduler-mysql-init.sh"
+    owner: root
+    group: root
+    mode: '0744'
+  when:
+    - inventory_hostname == "ds-master-1"
+
+- name: Initialize dolphinscheduler database
+  ansible.builtin.shell: |
+    sh -x {{ ansible_transfer_dir }}/dolphinscheduler-mysql-init.sh &> {{ ansible_transfer_dir }}/dolphinscheduler-mysql-init.log
+  when:
+    - inventory_hostname == "ds-master-1"
+  changed_when: true
+
+- name: "Delete {{ ansible_transfer_dir }}/dolphinscheduler-mysql-init.sh"
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  with_items:
+    - "{{ ansible_transfer_dir }}/dolphinscheduler-mysql-init.sh"
+  when:
+    - inventory_hostname == "ds-master-1"
+
+- name: Set host variable 'ds_inventory_hostname_list'
+  ansible.builtin.set_fact:
+    ds_inventory_hostname_list: "{{ groups['ds_master'] + groups['ds_worker'] + groups['ds_api_server'] + groups['ds_alert_server'] }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Modify ips= config in {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/install_env.sh"
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/install_env.sh"
+    regexp: '^ips='
+    line: ips="{{ ds_inventory_hostname_list | join(',') }}"
+    backup: true
+  when: inventory_hostname == "ds-master-1"
+
+- name: Set host variable 'ds_master_inventory_hostname_list'
+  ansible.builtin.set_fact:
+    ds_master_inventory_hostname_list: "{{ groups['ds_master'] }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Modify masters= config in {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/install_env.sh"
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/install_env.sh"
+    regexp: '^masters='
+    line: masters="{{ ds_master_inventory_hostname_list | join(',') }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: Set host variable 'ds_worker_inventory_hostname_list'
+  ansible.builtin.set_fact:
+    ds_worker_inventory_hostname_list: "{{ groups['ds_worker'] }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Modify workers= config in {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/install_env.sh"
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/install_env.sh"
+    regexp: '^workers='
+    line: workers="{{ ds_worker_inventory_hostname_list | join(':default,') }}:default"
+  when: inventory_hostname == "ds-master-1"
+
+- name: Set host variable 'ds_alertserver_inventory_hostname_list'
+  ansible.builtin.set_fact:
+    ds_alertserver_inventory_hostname_list: "{{ groups['ds_alert_server'] }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Modify alertServer= config in {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/install_env.sh"
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/install_env.sh"
+    regexp: '^alertServer='
+    line: alertServer="{{ ds_alertserver_inventory_hostname_list | join(',') }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: Set host variable 'ds_apiserver_inventory_hostname_list'
+  ansible.builtin.set_fact:
+    ds_apiserver_inventory_hostname_list: "{{ groups['ds_api_server'] }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Modify apiServers= config in {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/install_env.sh"
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/install_env.sh"
+    regexp: '^apiServers='
+    line: apiServers="{{ ds_apiserver_inventory_hostname_list | join(',') }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Modify installPath= config in {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/install_env.sh"
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/install_env.sh"
+    regexp: '^installPath='
+    line: installPath="{{ dolphinscheduler_deploy_dir }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Modify JAVA_HOME= config in {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/dolphinscheduler_env.sh"
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/dolphinscheduler_env.sh"
+    regexp: '^export\sJAVA_HOME'
+    line: export JAVA_HOME={{ java_home }}
+    backup: true
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Modify DATABASE= config in {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/dolphinscheduler_env.sh"
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/dolphinscheduler_env.sh"
+    regexp: '^export\sDATABASE'
+    line: export DATABASE=mysql
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Modify SPRING_DATASOURCE_URL= config in {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/dolphinscheduler_env.sh"
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/dolphinscheduler_env.sh"
+    regexp: '^export\sSPRING_DATASOURCE_URL'
+    line: export SPRING_DATASOURCE_URL="jdbc:mysql://{{ mysql_connect_address }}/{{ dolphinscheduler_db_name }}?useUnicode=true&characterEncoding=UTF-8&useSSL=false&allowPublicKeyRetrieval=true"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Modify SPRING_DATASOURCE_USERNAME= config in {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/dolphinscheduler_env.sh"
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/dolphinscheduler_env.sh"
+    regexp: '^export\sSPRING_DATASOURCE_USERNAME'
+    line: export SPRING_DATASOURCE_USERNAME={{ dolphinscheduler_db_user }}
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Modify SPRING_DATASOURCE_PASSWORD= config in {{ ansible_transfer_dir }}/{{  dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/dolphinscheduler_env.sh"
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/dolphinscheduler_env.sh"
+    regexp: '^export\sSPRING_DATASOURCE_PASSWORD'
+    line: export SPRING_DATASOURCE_PASSWORD={{ dolphinscheduler_db_password }}
+  when: inventory_hostname == "ds-master-1"
+
+- name: Set host variable 'ds_zookeeper_inventory_hostname_list'
+  ansible.builtin.set_fact:
+    ds_zookeeper_inventory_hostname_list: "{{ groups['ds_zookeeper'] }}"
+  when: inventory_hostname == "ds-master-1"
+
+- name: "Modify REGISTRY_ZOOKEEPER_CONNECT_STRING= config in {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/dolphinscheduler_env.sh"
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/bin/env/dolphinscheduler_env.sh"
+    regexp: '^export\sREGISTRY_ZOOKEEPER_CONNECT_STRING'
+    line: export REGISTRY_ZOOKEEPER_CONNECT_STRING={{ ds_zookeeper_inventory_hostname_list | join(':2181,') }}:2181
+  when: inventory_hostname == "ds-master-1"
+
+# - name: "Modify time-zone in {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/api-server/conf/application.yaml"
+#   ansible.builtin.lineinfile:
+#     path: "{{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/api-server/conf/application.yaml"
+#     regexp: '\s'
+#     line: export REGISTRY_ZOOKEEPER_CONNECT_STRING={{ ds_zookeeper_inventory_hostname_list | join(':2181,') }}:2181
+#   when: inventory_hostname == "ds-master-1"
+
+- name: Deploy Dolphinscheduler and start all
+  ansible.builtin.shell: |
+    cd {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}/
+    bash ./bin/install.sh &> ./bin/install.log
+  become: true
+  become_user: "{{ dolphinscheduler_system_user }}"
+  when: inventory_hostname == "ds-master-1"
+  changed_when: true
+
+- name: Pause for 30 seconds
+  ansible.builtin.pause:
+    seconds: 30
+
+- name: Check whether port 5678 is open on all master node
+  ansible.builtin.wait_for:
+    port: "{{ item }}"
+    host: "{{ hostvars[inventory_hostname]['ansible_host'] }}"
+    state: started
+    timeout: 60
+  with_items:
+    - 5678
+  when: inventory_hostname in groups['ds_master']
+
+- name: Check whether port 1234 is open on all worker node
+  ansible.builtin.wait_for:
+    port: "{{ item }}"
+    host: "{{ hostvars[inventory_hostname]['ansible_host'] }}"
+    state: started
+    timeout: 60
+  with_items:
+    - 1234
+  when: inventory_hostname in groups['ds_worker']
+
+- name: Check whether port 12345 is open on ds_api_server node
+  ansible.builtin.wait_for:
+    port: "{{ item }}"
+    host: "{{ hostvars[inventory_hostname]['ansible_host'] }}"
+    state: started
+    timeout: 60
+  with_items:
+    - 12345
+  when: inventory_hostname in groups['ds_api_server']

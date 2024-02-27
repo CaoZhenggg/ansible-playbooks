@@ -1,0 +1,5 @@
+#!/bin/bash
+
+cd {{ ansible_transfer_dir }}/{{ dolphinscheduler_pkg_uncompressed_root_dir }}
+
+bash ./bin/install.sh &> ./bin/install.log

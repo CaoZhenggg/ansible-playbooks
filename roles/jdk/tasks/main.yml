@@ -1,0 +1,45 @@
+---
+- name: "Create directory {{ ansible_transfer_dir }} for ansible to transfer files"
+  ansible.builtin.file:
+    path: "{{ ansible_transfer_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: "Copy JDK package to remote {{ ansible_transfer_dir }} directory"
+  ansible.builtin.copy:
+    src: "{{ local_jdk_pkg_path }}"
+    dest: "{{ ansible_transfer_dir }}/"
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Create JDK directory
+  ansible.builtin.file:
+    path: "{{ jdk_deploy_path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Get the current umask
+  ansible.builtin.command: umask
+  register: umask
+  changed_when: false
+
+- name: Uncompress JDK package
+  ansible.builtin.shell: |
+    umask 022
+    tar -zxf {{ ansible_transfer_dir }}/{{ jdk_pkg_name }} -C {{ jdk_deploy_path }}
+    chown root:root {{ java_home }} -R
+    umask {{ umask.stdout }}
+  changed_when: true
+
+- name: Add environment to /etc/profile.d/jdk.sh
+  ansible.builtin.template:
+    src: templates/jdk.sh.j2
+    dest: /etc/profile.d/jdk.sh
+    owner: root
+    group: root
+    mode: '0644'

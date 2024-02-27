@@ -1,0 +1,34 @@
+---
+#
+# System
+#
+
+# Optional value: rhel7.8, rhel7.9
+system_distribution: rhel7.9
+
+system_software_repository_is_available: true
+
+
+#
+# Mysql
+#
+mysql_server_pkg_name: mysql-8.2.0-1.el7.x86_64.rpm-bundle.tar
+mysql_server_dependencies_pkg_name: mysql-8.2.0-1-dependencies.tar
+local_mysql_server_pkg_path: "files/{{ system_distribution }}/{{ mysql_server_pkg_name }}"
+local_mysql_server_dependencies_pkg_path: "files/{{ system_distribution }}/{{ mysql_server_dependencies_pkg_name }}"
+
+# Single || Replication || GroupReplication
+mysql_deploy_arch: Single
+
+mysql_root_password: "Root@123"
+mysql_root_remote_account_enable: true
+
+mysql_data_dir: /data/mysql
+
+mysql_default_timezone: "+08:00"
+
+
+#
+# Ansible
+#
+ansible_transfer_dir: /opt/.ansible-transfer-files

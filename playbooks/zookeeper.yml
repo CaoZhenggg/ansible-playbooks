@@ -1,0 +1,16 @@
+---
+# example:
+# ansible-playbook \
+#     -e "deploy_hosts=zookeeper" \
+#     -e "zookeeper_deploy_arch=cluster" \
+#     -K \
+#     playbooks/zookeeper.yml
+- name: "Deploy ZooKeeper"
+  hosts: "{{ deploy_hosts }}"
+  gather_facts: true
+  become: true
+  become_user: root
+  become_method: sudo
+  roles:
+    - jdk
+    - zookeeper

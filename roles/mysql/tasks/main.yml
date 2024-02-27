@@ -1,0 +1,22 @@
+---
+- name: Configure system settings
+  ansible.builtin.include_role:
+    name: configure-system
+
+- name: Single instance deployment
+  ansible.builtin.include_tasks:
+    file: single.yml
+  when:
+    - mysql_deploy_arch == "Single"
+
+# - name: Replication deployment
+#   ansible.builtin.include_tasks:
+#     file: replication.yml
+#   when:
+#    - mysql_deploy_arch == "Replication"
+
+# - name: Group Replication deployment
+#   ansible.builtin.include_tasks:
+#     file: replication.yml
+#   when:
+#     - mysql_deploy_arch == "GroupReplication"

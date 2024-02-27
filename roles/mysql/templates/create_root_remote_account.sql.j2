@@ -1,0 +1,3 @@
+CREATE USER 'root'@'%' IDENTIFIED BY '{{ mysql_root_password }}';
+GRANT ALL ON *.* TO 'root'@'%' WITH GRANT OPTION;
+FLUSH PRIVILEGES;

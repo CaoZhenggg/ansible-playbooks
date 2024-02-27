@@ -1,0 +1,24 @@
+---
+- name: Config system
+  ansible.builtin.include_tasks:
+    file: config-system.yml
+
+- name: Install nginx
+  ansible.builtin.include_tasks:
+    file: install-nginx.yml
+  when: inventory_hostname in groups["minio_nginx"]
+
+- name: Install keepalive
+  ansible.builtin.include_tasks:
+    file: install-keepalive.yml
+  when: inventory_hostname in groups["minio_nginx"]
+
+- name: Install minio server
+  ansible.builtin.include_tasks:
+    file: install-minio-server.yml
+  when: inventory_hostname in groups["minio"]
+
+- name: Install minio client
+  ansible.builtin.include_tasks:
+    file: install-minio-client.yml
+  when: inventory_hostname in groups["minio"]

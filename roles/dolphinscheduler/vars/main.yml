@@ -1,0 +1,101 @@
+---
+#
+# System
+#
+
+# Optional value: rhel7.8, rhel7.9
+system_distribution: rhel7.9
+
+
+#
+# DolphinScheduler
+#
+dolphinscheduler_deploy_dir: /opt/dolphinscheduler
+dolphinscheduler_pkg_name: apache-dolphinscheduler-3.1.7-bin.tar.gz
+dolphinscheduler_pkg_uncompressed_root_dir: apache-dolphinscheduler-3.1.7-bin
+local_dolphinscheduler_pkg_path: "files/dolphinscheduler/{{ dolphinscheduler_pkg_name }}"
+
+dolphinscheduler_system_user: dolphinscheduler
+dolphinscheduler_system_password: Qwer12343!@
+
+dolphinscheduler_db_name: dolphinscheduler
+dolphinscheduler_db_user: dolphinscheduler
+dolphinscheduler_db_password: Dolphin@123
+
+mysql_connector_jar_name: mysql-connector-java-8.0.16.jar
+local_mysql_connector_jar_path: "files/jar/{{ mysql_connector_jar_name }}"
+
+ojdbc_jar_name: ojdbc8-12.2.0.1.jar
+local_ojdbc_jar_path: "files/jar/{{ ojdbc_jar_name }}"
+
+
+#
+# datax
+#
+datax_deploy_dir: /opt/soft
+datax_pkg_name: datax.zip
+datax_pkg_uncompressed_root_dir: datax
+local_datax_pkg_path: "files/datax/{{ datax_pkg_name }}"
+
+
+#
+# ZooKeeper
+#
+__zookeeper_hosts: "ds_zookeeper"
+
+# Option values: cluster, standalone. Default is cluster in zookeeper role.
+__zookeeper_deploy_arch: cluster
+
+
+#
+# Mysql server
+#
+mysql_deploy_switch: "on"
+__mysql_deploy_arch: Single
+mysql_connect_address: "192.168.3.55"
+mysql_admin_username: root
+mysql_admin_password: Mysql@123
+
+
+#
+# Mysql client
+#
+mysql_client_pkg_name: mysql-client-8.2.0-1.tar.gz
+mysql_client_pkg_uncompressed_root_dir: mysql-client-8.2.0-1
+local_mysql_client_pkg_path: "files/{{ system_distribution }}/{{ mysql_client_pkg_name }}"
+remote_mysql_client_pkg_uncompressed_dir: "{{ ansible_transfer_dir }}/{{ mysql_client_pkg_uncompressed_root_dir }}"
+
+
+#
+# NTP
+#
+ntp_server_deploy_switch: "on"
+
+__ntp_servers:
+  - ntp.aliyun.com
+  - ntp.tencent.com
+
+
+#
+# psmisc
+#
+psmisc_pkg_name: psmisc.tar.gz
+psmisc_pkg_uncompressed_root_dir: psmisc
+local_psmisc_pkg_path: "files/{{ system_distribution }}/{{ psmisc_pkg_name }}"
+remote_psmisc_pkg_uncompressed_dir: "{{ ansible_transfer_dir }}/{{ psmisc_pkg_uncompressed_root_dir }}"
+
+#
+# unzip
+#
+unzip_pkg_name: unzip.tar.gz
+unzip_pkg_uncompressed_root_dir: unzip
+local_unzip_pkg_path: "files/{{ system_distribution }}/{{ unzip_pkg_name }}"
+remote_unzip_pkg_uncompressed_dir: "{{ ansible_transfer_dir }}/{{ unzip_pkg_uncompressed_root_dir }}"
+
+
+#
+# Ansible
+#
+ansible_transfer_dir: /opt/.ansible-transfer-files
+
+java_home: /opt/jdk1.8.0_391
